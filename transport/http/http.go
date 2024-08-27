@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"sync"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/netsampler/goflow2/v2/transport"
 )
@@ -74,7 +73,7 @@ func (d *HTTPDriver) Send(key, data []byte) error {
 	batchData := make(map[string]interface{})
 	err := json.Unmarshal(data, &batchData)
 	if err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("unmarshal json")
+		slog.Error("unmarshal json", slog.String("error", err.Error()))
 		return err
 	}
 	d.batchData = append(d.batchData, batchData)
@@ -93,7 +92,7 @@ func (d *HTTPDriver) sendBatchData() {
 
 	jsonData, err := json.Marshal(d.batchData)
 	if err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("marshal batch data")
+		slog.Error("marshal batch data", slog.String("error", err.Error()))
 		return
 	}
 
@@ -109,7 +108,7 @@ func (d *HTTPDriver) sendBatchData() {
 		for i := 0; i < maxRetries; i++ {
 			req, err := http.NewRequest("POST", d.httpDestination, bytes.NewBuffer(jsonData))
 			if err != nil {
-				log.Error(err)
+				slog.Error("create http request", slog.String("error", err.Error()))
 				return
 			}
 
@@ -122,7 +121,8 @@ func (d *HTTPDriver) sendBatchData() {
 			resp, err := client.Do(req)
 			if err != nil || (resp.StatusCode < 200 || resp.StatusCode >= 300) {
 				if i == maxRetries-1 {
-					log.Error(err)
+					slog.Error("request", slog.String("error", err.Error()))
+
 					return
 				}
 				time.Sleep(delay * time.Duration(math.Pow(2, float64(i)))) // exponential backoff
